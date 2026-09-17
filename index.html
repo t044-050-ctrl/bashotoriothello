@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ばしょとりゲーム</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      position: fixed;
+      top: 0;
+      left: 0;
+      touch-action: none;
+      background-color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* Main Container (Full Viewport) */
+    .app-viewport {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background-color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      touch-action: none;
+    }
+
+    .board-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: calc(min(68vw, 68vh) / 5);
+    }
+
+    /* Action Buttons (Sort / Reset) in Dark Style */
+    .action-btn {
+      position: absolute;
+      width: min(10vw, 12vh);
+      height: min(10vw, 12vh);
+      font-size: min(1.5vw, 1.7vh);
+      font-weight: bold;
+      background-color: #334155;
+      color: #f1f5f9;
+      border: 2px solid #475569;
+      border-radius: 16px;
+      cursor: pointer;
+      outline: none;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+      transition: all 0.15s ease;
+      z-index: 10;
+      display: none; /* Hidden by default */
+      justify-content: center;
+      align-items: center;
+      white-space: nowrap;
+      padding: 4px;
+    }
+    .action-btn.visible {
+      display: flex;
+    }
+    .action-btn:active {
+      background-color: #475569;
+    }
+    .action-top-left {
+      top: 24px;
+      left: 24px;
+      transform: rotate(90deg);
+    }
+    .action-top-left:active {
+      transform: rotate(90deg) scale(0.95);
+    }
+    .action-bottom-right {
+      bottom: 24px;
+      right: 24px;
+      transform: rotate(-90deg);
+    }
+    .action-bottom-right:active {
+      transform: rotate(-90deg) scale(0.95);
+    }
+
+    .color-btn {
+      width: min(8.8vw, 10.4vh);
+      height: min(17.6vw, 20.8vh);
+      border-radius: 9999px;
+      border: none;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+    }
+
+    .btn-blue {
+      background: #4A83C2;
+      border: 3px solid #60a5fa;
+      box-shadow: 0 0 15px rgba(74, 131, 194, 0.4);
+    }
+    .btn-blue.active {
+      box-shadow: 0 0 25px min(2vw, 2vh) rgba(96, 165, 250, 0.8), inset 0 0 10px #ffffff;
+      transform: scale(1.08);
+      border-color: #93c5fd;
+    }
+
+    .btn-red {
+      background: #F76A57;
+      border: 3px solid #f87171;
+      box-shadow: 0 0 15px rgba(247, 106, 87, 0.4);
+    }
+    .btn-red.active {
+      box-shadow: 0 0 25px min(2vw, 2vh) rgba(248, 113, 113, 0.8), inset 0 0 10px #ffffff;
+      transform: scale(1.08);
+      border-color: #fca5a5;
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      grid-template-rows: repeat(5, 1fr);
+      width: min(68vw, 68vh);
+      height: min(68vw, 68vh);
+      background-color: #334155;
+      padding: 3px;
+      gap: 3px;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    /* Cell Animations */
+    @keyframes pushGlowBlue {
+      0% { transform: scale(1); box-shadow: none; }
+      50% { transform: scale(0.88); box-shadow: 0 0 20px rgba(96, 165, 250, 0.9); z-index: 5; }
+      100% { transform: scale(1); box-shadow: none; }
+    }
+    @keyframes pushGlowRed {
+      0% { transform: scale(1); box-shadow: none; }
+      50% { transform: scale(0.88); box-shadow: 0 0 20px rgba(248, 113, 113, 0.9); z-index: 5; }
+      100% { transform: scale(1); box-shadow: none; }
+    }
+    @keyframes flipToBlue {
+      0% { transform: rotateY(0deg) scale(1); }
+      50% { transform: rotateY(90deg) scale(0.8); }
+      100% { transform: rotateY(0deg) scale(1); }
+    }
+    @keyframes flipToRed {
+      0% { transform: rotateY(0deg) scale(1); }
+      50% { transform: rotateY(90deg) scale(0.8); }
+      100% { transform: rotateY(0deg) scale(1); }
+    }
+
+    .cell {
+      background-color: #BFBFBF;
+      border: none;
+      cursor: pointer;
+      position: relative;
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+      overflow: hidden;
+      border-radius: 2px;
+    }
+    .cell::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transition: background-color 0.2s ease;
+    }
+    .cell.blue {
+      cursor: default;
+    }
+    .cell.blue::after {
+      background-color: #4A83C2;
+    }
+    .cell.blue.animate-place::after {
+      animation: pushGlowBlue 0.35s ease-out forwards;
+    }
+    .cell.blue.animate-flip::after {
+      animation: flipToBlue 0.4s ease-in-out forwards;
+    }
+
+    .cell.red {
+      cursor: default;
+    }
+    .cell.red::after {
+      background-color: #F76A57;
+    }
+    .cell.red.animate-place::after {
+      animation: pushGlowRed 0.35s ease-out forwards;
+    }
+    .cell.red.animate-flip::after {
+      animation: flipToRed 0.4s ease-in-out forwards;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-viewport">
+    <!-- Sort Buttons -->
+    <button class="action-btn action-top-left" id="sortTop">ならべかえ</button>
+    <button class="action-btn action-bottom-right" id="sortBottom">ならべかえ</button>
+
+    <!-- Reset Buttons -->
+    <button class="action-btn action-top-left" id="resetTop">はじめから</button>
+    <button class="action-btn action-bottom-right" id="resetBottom">はじめから</button>
+
+    <div class="board-wrapper">
+      <button class="color-btn btn-blue" id="btnBlue" aria-label="Blue"></button>
+      <div class="grid-container" id="grid"></div>
+      <button class="color-btn btn-red" id="btnRed" aria-label="Red"></button>
+    </div>
+  </div>
+
+  <script>
+    let selectedColor = null;
+
+    // Prevent default touch gestures (swiping/scrolling)
+    document.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+    }, { passive: false });
+
+    const btnBlue = document.getElementById('btnBlue');
+    const btnRed = document.getElementById('btnRed');
+    const grid = document.getElementById('grid');
+    
+    const sortTop = document.getElementById('sortTop');
+    const sortBottom = document.getElementById('sortBottom');
+    const resetTop = document.getElementById('resetTop');
+    const resetBottom = document.getElementById('resetBottom');
+
+    const cells = [];
+
+    // Create 5x5 Grid Cells
+    for (let i = 0; i < 25; i++) {
+      const cell = document.createElement('div');
+      cell.classList.add('cell');
+      cell.dataset.index = i;
+      cell.addEventListener('click', () => onCellClick(cell, i));
+      grid.appendChild(cell);
+      cells.push(cell);
+    }
+
+    btnBlue.addEventListener('click', () => toggleColor('blue'));
+    btnRed.addEventListener('click', () => toggleColor('red'));
+
+    function toggleColor(color) {
+      if (selectedColor === color) {
+        selectedColor = null;
+      } else {
+        selectedColor = color;
+      }
+      updateButtonStyles();
+    }
+
+    function updateButtonStyles() {
+      btnBlue.classList.toggle('active', selectedColor === 'blue');
+      btnRed.classList.toggle('active', selectedColor === 'red');
+    }
+
+    function onCellClick(cell, clickedIdx) {
+      if (!selectedColor) return;
+      if (cell.classList.contains('blue') || cell.classList.contains('red')) return;
+
+      const myColor = selectedColor;
+      const opponentColor = myColor === 'blue' ? 'red' : 'blue';
+
+      // Place current player's color
+      cell.classList.remove('animate-flip', 'animate-place');
+      cell.classList.add(myColor, 'animate-place');
+
+      // Check for trapped opponent cells (Othello rule: 8 directions)
+      const flippedCells = getFlippedCells(clickedIdx, myColor, opponentColor);
+
+      // Flip the trapped cells with animation
+      flippedCells.forEach((flippedCell, idx) => {
+        setTimeout(() => {
+          flippedCell.classList.remove('blue', 'red', 'animate-place', 'animate-flip');
+          // Force reflow for animation restart
+          void flippedCell.offsetWidth;
+          flippedCell.classList.add(myColor, 'animate-flip');
+        }, 100 + idx * 60); // Sequential flip effect
+      });
+
+      selectedColor = null;
+      updateButtonStyles();
+
+      // Check if all 25 cells are filled
+      const filledCells = document.querySelectorAll('.cell.blue, .cell.red');
+      if (filledCells.length === 25) {
+        // Show sort button after flips finish
+        setTimeout(showSortButtons, 500);
+      }
+    }
+
+    function getFlippedCells(startIdx, myColor, opponentColor) {
+      const r0 = Math.floor(startIdx / 5);
+      const c0 = startIdx % 5;
+      const flipped = [];
+
+      // 8 directions: Up, Down, Left, Right, 4 Diagonals
+      const directions = [
+        [-1, 0], [1, 0], [0, -1], [0, 1],
+        [-1, -1], [-1, 1], [1, -1], [1, 1]
+      ];
+
+      directions.forEach(([dr, dc]) => {
+        let r = r0 + dr;
+        let c = c0 + dc;
+        const potentialFlips = [];
+
+        while (r >= 0 && r < 5 && c >= 0 && c < 5) {
+          const idx = r * 5 + c;
+          const targetCell = cells[idx];
+
+          if (targetCell.classList.contains(opponentColor)) {
+            potentialFlips.push(targetCell);
+          } else if (targetCell.classList.contains(myColor)) {
+            // Reached own color, so all intermediate cells are trapped
+            if (potentialFlips.length > 0) {
+              flipped.push(...potentialFlips);
+            }
+            break;
+          } else {
+            // Empty cell, no trapping in this direction
+            break;
+          }
+
+          r += dr;
+          c += dc;
+        }
+      });
+
+      return flipped;
+    }
+
+    function showSortButtons() {
+      sortTop.classList.add('visible');
+      sortBottom.classList.add('visible');
+    }
+
+    function hideSortButtons() {
+      sortTop.classList.remove('visible');
+      sortBottom.classList.remove('visible');
+    }
+
+    function showResetButtons() {
+      resetTop.classList.add('visible');
+      resetBottom.classList.add('visible');
+    }
+
+    function hideResetButtons() {
+      resetTop.classList.remove('visible');
+      resetBottom.classList.remove('visible');
+    }
+
+    function handleSort() {
+      const blueCells = cells.filter(cell => cell.classList.contains('blue'));
+      const numBlue = blueCells.length;
+
+      // Clear existing classes
+      cells.forEach(c => c.classList.remove('blue', 'red', 'animate-place', 'animate-flip'));
+
+      // Fill Blue starting from Blue button's closest side (Left column to right)
+      // Column 0 (bottom to top): 20, 15, 10, 5, 0
+      // Column 1: 21, 16, 11, 6, 1 ...
+      const blueFillOrder = [
+        20, 15, 10, 5, 0,
+        21, 16, 11, 6, 1,
+        22, 17, 12, 7, 2,
+        23, 18, 13, 8, 3,
+        24, 19, 14, 9, 4
+      ];
+
+      // Assign blue cells
+      for (let i = 0; i < numBlue; i++) {
+        const targetIdx = blueFillOrder[i];
+        cells[targetIdx].classList.add('blue');
+      }
+
+      // Assign red cells to all remaining positions
+      for (let i = numBlue; i < 25; i++) {
+        const targetIdx = blueFillOrder[i];
+        cells[targetIdx].classList.add('red');
+      }
+
+      // Hide sort buttons and show reset buttons
+      hideSortButtons();
+      showResetButtons();
+    }
+
+    function resetGame() {
+      selectedColor = null;
+      updateButtonStyles();
+
+      // Hide action buttons
+      hideSortButtons();
+      hideResetButtons();
+
+      cells.forEach(cell => {
+        cell.classList.remove('blue', 'red', 'animate-place', 'animate-flip');
+      });
+    }
+
+    sortTop.addEventListener('click', handleSort);
+    sortBottom.addEventListener('click', handleSort);
+    resetTop.addEventListener('click', resetGame);
+    resetBottom.addEventListener('click', resetGame);
+  </script>
+</body>
+</html>
